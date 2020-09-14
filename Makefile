@@ -1,4 +1,4 @@
 CC=cc
 
 all:
-	$(CC) cli_test.c -o test.exe
+	$(CC) CliTest.c -o test.exe
