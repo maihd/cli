@@ -3,18 +3,18 @@
 #include <string.h>
 #include <stdbool.h>
 
-enum {
-    CLI_NO_ARGUMENT = 0,
-    CLI_REQUIRE_ARGUMENT = 1,
-    CLI_OPTIONAL_ARGUMENT = 2,
-};
+typedef enum {
+    CliType_NoArgument = 0,
+    CliType_RequireArgument = 1,
+    CliType_OptionalArgument = 2,
+} CliType;
 
 typedef struct {
     const char* arg;
     int         option;
 
-    int         arg_index;
-    int         option_index;
+    int         argIndex;
+    int         optionIndex;
 
     // Internal
     int index, position, argc;
@@ -22,13 +22,13 @@ typedef struct {
 
 typedef struct {
     const char* name;
-    int arg_type;
-    int value;
+    CliType     type;
+    int         value;
 } CliOption;
 
 static CliParser CLI_PARSER_INIT = { NULL, 0, 1, -1, 1, 0, 0 };
 
-static void cli_permute_arg(const char** __restrict argv, int index, int count)
+static void Cli_permuteArgument(const char** __restrict argv, int index, int count)
 {
     int i;
     const char* arg = argv[index];
@@ -40,9 +40,9 @@ static void cli_permute_arg(const char** __restrict argv, int index, int count)
     argv[index - i] = arg;
 }
 
-static int cli_parse_options(CliParser* __restrict parser, int argc, const char** __restrict argv, bool permute, const char* __restrict short_options, const CliOption* __restrict options)
+static int Cli_parseOptions(CliParser* __restrict parser, int argc, const char** __restrict argv, bool permute, const char* __restrict shortOptions, const CliOption* __restrict options)
 {
-    int option_value = -1;
+    int optionValue = -1;
 
     if (permute)
     {
@@ -54,9 +54,9 @@ static int cli_parse_options(CliParser* __restrict parser, int argc, const char*
     }
 
     parser->arg = NULL;
-    parser->option_index = -1;
+    parser->optionIndex = -1;
     
-    int start_index = parser->index;
+    int startIndex = parser->index;
     if (parser->index >= argc || argv[parser->index][0] != '-' || argv[parser->index][1] == '\0')
     {
         parser->index = parser->index - parser->argc;
@@ -67,12 +67,12 @@ static int cli_parse_options(CliParser* __restrict parser, int argc, const char*
     {
         if (argv[parser->index][2] == '\0')
         {
-            cli_permute_arg(argv, parser->index, parser->argc);
+            Cli_permuteArgument(argv, parser->index, parser->argc);
             parser->index++; parser->index = parser->index - parser->argc;
             return -1;
         }
 
-        option_value = '?';
+        optionValue = '?';
         parser->option = 0;
         parser->position = -1;
         if (options) // Parse named options
@@ -80,8 +80,8 @@ static int cli_parse_options(CliParser* __restrict parser, int argc, const char*
             int exact = 0;
             int partial = 0;
             const CliOption* option = NULL;
-            const CliOption* option_exact = NULL;
-            const CliOption* option_partial = NULL;
+            const CliOption* optionExact = NULL;
+            const CliOption* optionPartial = NULL;
 
             // Find the end of the option name
             int position = 2; // position=2 because skip "--"
@@ -98,12 +98,12 @@ static int cli_parse_options(CliParser* __restrict parser, int argc, const char*
                 {
                     if (options[i].name[name_length] == 0)
                     {
-                        option_exact = &options[i];
+                        optionExact = &options[i];
                         exact++;
                     }
                     else
                     {
-                        option_partial = &options[i];
+                        optionPartial = &options[i];
                         partial++;
                     }
                 }
@@ -115,18 +115,18 @@ static int cli_parse_options(CliParser* __restrict parser, int argc, const char*
                 return '?';
             }
 
-            option = exact == 1 ? option_exact : (partial == 1 ? option_partial : NULL);
+            option = exact == 1 ? optionExact : (partial == 1 ? optionPartial : NULL);
             if (option)
             {
-                parser->option = option_value = option->value;
-                parser->option_index = option - options;
+                parser->option = optionValue = option->value;
+                parser->optionIndex = option - options;
 
                 if (argv[parser->index][position] == '=')
                 {
                     parser->arg = &argv[parser->index][position + 1];
                 }
 
-                if (option->arg_type == CLI_REQUIRE_ARGUMENT && argv[parser->index][position] == 0)
+                if (option->type == CliType_RequireArgument && argv[parser->index][position] == 0)
                 {
                     if (parser->index < argc - 1)
                     {
@@ -134,7 +134,7 @@ static int cli_parse_options(CliParser* __restrict parser, int argc, const char*
                     }
                     else
                     {
-                        option_value = ':'; // Missing option argument
+                        optionValue = ':'; // Missing option argument
                     }
                 }
             }
@@ -148,11 +148,11 @@ static int cli_parse_options(CliParser* __restrict parser, int argc, const char*
             parser->position = 1;
         }
 
-        option_value = parser->option = argv[parser->index][parser->position++];
-        ptr = strchr((char*)short_options, option_value);
+        optionValue = parser->option = argv[parser->index][parser->position++];
+        ptr = strchr((char*)shortOptions, optionValue);
         if (!ptr)
         {
-            option_value = '?';
+            optionValue = '?';
         }
         else if (ptr[1] == ':') // This option need params
         {
@@ -182,13 +182,13 @@ static int cli_parse_options(CliParser* __restrict parser, int argc, const char*
 
         if (parser->argc > 0)
         {
-            for (int j = start_index; j < parser->index; j++)
+            for (int j = startIndex; j < parser->index; j++)
             {
-                cli_permute_arg(argv, j, parser->argc);
+                Cli_permuteArgument(argv, j, parser->argc);
             }
         }
     }
 
-    parser->arg_index = parser->index - parser->argc;
-    return option_value;
+    parser->argIndex = parser->index - parser->argc;
+    return optionValue;
 }
